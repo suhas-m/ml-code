@@ -1,0 +1,6 @@
+index,file_path,extension,candidate_name,email,phone,experience,platforms,database,programming,machinelearning,universities,languages,hobbies,open-source
+0,../data/input/example_resumes/Dhansukh-Rathod.pdf,.pdf,NOT FOUND,dhansukhrathodk@gmail.com,7021633154,set(),set(),{'SQL'},"{'R', '.NET', 'java', 'python', 'C'}",set(),{'MIT'},set(),set(),set()
+1,../data/input/example_resumes/Pooja-Yadav.pdf,.pdf,NOT FOUND,pooja3q@gmail.com,9794665416,{'developer'},set(),{'SQL'},"{'C#', 'R', '.NET', 'java', 'JavaScript', 'C'}",{'tensorflow'},set(),set(),set(),set()
+2,../data/input/example_resumes/Akash_Repale.pdf,.pdf,NOT FOUND,akashrepale@gmail.com,7276703958,set(),{'Windows'},"{'MySQL', 'Oracle', 'SQL'}","{'R', '.NET', 'java', 'JavaScript', 'python', 'C'}",set(),{'MIT'},set(),set(),set()
+3,../data/input/example_resumes/Supriya-Kondhalkar.pdf,.pdf,NOT FOUND,supriyak810@gmail.com,8454016095,set(),"{'Windows', 'Linux'}","{'Oracle', 'SQL'}","{'C#', 'R', '.NET', 'java', 'C'}",set(),set(),set(),set(),set()
+4,../data/input/example_resumes/Sagar-Khandare.pdf,.pdf,NOT FOUND,skhandare440@gmail.com,9768607303,set(),set(),{'SQL'},"{'Matlab', 'R', '.NET', 'java', 'C'}",set(),set(),{'English'},set(),set()
