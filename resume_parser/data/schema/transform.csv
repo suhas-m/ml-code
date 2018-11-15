@@ -2,9 +2,9 @@ variable,type,data_set
 file_path,object,observations
 extension,object,observations
 text,object,observations
-candidate_name,object,observations
 email,object,observations
 phone,object,observations
+candidate_name,object,observations
 experience,object,observations
 platforms,object,observations
 database,object,observations
