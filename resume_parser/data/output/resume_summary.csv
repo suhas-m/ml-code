@@ -1,2 +1,2 @@
 index,file_path,extension,email,phone,candidate_name,experience,platforms,database,programming,machinelearning,universities,languages,hobbies,open-source
-0,../data/input/example_resumes/Brendan_Herger_Resume.pdf,.pdf,13herger@gmail.com,,Brendan Herger,{'developer'},{'Mac'},"{'MySQL', 'SQL'}","{'C', 'R', 'python', '.NET', 'java'}",{'sklearn'},{'Vrije Univesriteit'},set(),set(),{'github'}
+0,../data/input/example_resumes/Brendan_Herger_Resume.pdf,.pdf,13herger@gmail.com,,Brendan Herger,{'developer'},{'Mac'},"{'MySQL', 'SQL'}","{'.NET', 'R', 'C', 'java', 'python'}",{'sklearn'},{'Vrije Univesriteit'},set(),set(),{'github'}

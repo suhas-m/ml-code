@@ -25,7 +25,7 @@ from dao.users import users
 from dao.skills import skills
 
 
-def processResumes(connection):
+def processResumes(connection, drive_folder):
     """
     Main function documentation template
     :return: None
@@ -37,7 +37,7 @@ def processResumes(connection):
     creds = authInst.getCredentials()
     drive_service = build('drive', 'v3', http=creds.authorize(Http()))
     resumes_destination_path = "../data/input/example_resumes/"
-    DRIVE_FOLDER_NAME = 'resumes'
+    DRIVE_FOLDER_NAME = drive_folder
     
     logging.getLogger().setLevel(logging.INFO)
     fileIOInst = file_io.file_io(drive_service)
@@ -55,6 +55,7 @@ def processResumes(connection):
         filesToProcessArr = {}
         for  remoteId in files:
             cursor = fileProcessedObj.find(remoteId)    
+            logging.info('File processed count:'+str(cursor.rowcount))
             if (cursor != False and cursor.rowcount > 0) :
                 logging.info('File already processed:'+files[remoteId])
                 alreadyProcessedFiles = alreadyProcessedFiles+1

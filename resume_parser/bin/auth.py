@@ -16,6 +16,14 @@ class auth:
     def __init__(self, SCOPES, CREDENTIALS_FILE):
         self.SCOPES = SCOPES
         self.CREDENTIALS_FILE = CREDENTIALS_FILE
+        
+    def storeAuthToken(self) :
+        store = file.Storage('token.json')
+        creds = store.get()
+        if not creds or creds.invalid:
+            flow = client.flow_from_clientsecrets(self.CREDENTIALS_FILE, self.SCOPES)
+            creds = tools.run_flow(flow, store)
+        
     def getCredentials(self):
         requests.post('https://accounts.google.com/o/oauth2/revoke',
                       params={'token': file.Storage('token.json')},
