@@ -25,6 +25,8 @@ utils = common_utils()
 config = utils.loadConfig()
 connection = db_connection(config)
 from dao.batch import batch
+from dao.files_processed import files_processed
+from utils.file_io import file_io
 app = Flask(__name__)
 #api = Api(app)
 SCOPES = 'https://www.googleapis.com/auth/drive.readonly'
@@ -37,10 +39,53 @@ def getBatches():
     batches = batchObj.find(start, limit)
     return jsonify(batches)   
 
+@app.route('/candidates', methods = ['GET'])
+def getCandidateDetails():
+    batch_id = request.args.get('batch_id')
+    folder_name = request.args.get('folder_name')
+    if not folder_name :
+        authInst = auth.auth(SCOPES, CREDENTIALS_FILE)
+        creds = authInst.getCredentials()
+        drive_service = build('drive', 'v3', http=creds.authorize(Http()))
+        logging.getLogger().setLevel(logging.INFO)
+        fileIOInst = file_io.file_io(drive_service)
+       
+        #Search folder with name
+        folderId = fileIOInst.getFolderId(folder_name)    
+        filesProcessedObj = files_processed(connection)
+        start = request.args.get('start')
+        limit = request.args.get('limit')
+        users = filesProcessedObj.getDetails(folder_id, start, limit)
+       
+        return jsonify(users)
+    if not batch_id :
+        batchObj = batch(connection)
+        users = batchObj.getDetails(batch_id)
+        return jsonify(users)
+        
+  
+
 @app.route('/batch/<string:batch_id>', methods=['GET'])
 def getBatchDetails(batch_id) :
     batchObj = batch(connection)
     users = batchObj.getDetails(batch_id)
+    return jsonify(users)
+
+@app.route('/folder/<string:folder_name>', methods=['GET'])
+def getFolderDetails(folder_name) :
+    authInst = auth.auth(SCOPES, CREDENTIALS_FILE)
+    creds = authInst.getCredentials()
+    drive_service = build('drive', 'v3', http=creds.authorize(Http()))
+    logging.getLogger().setLevel(logging.INFO)
+    fileIOInst = file_io.file_io(drive_service)
+   
+    #Search folder with name
+    folderId = fileIOInst.getFolderId(folder_name)    
+    filesProcessedObj = files_processed(connection)
+    start = request.args.get('start')
+    limit = request.args.get('limit')
+    users = filesProcessedObj.getDetails(folder_id, start, limit)
+   
     return jsonify(users)
 
 @app.route('/batch', methods = ['POST'])
@@ -48,8 +93,9 @@ def createBatch():
     req_data = request.get_json()
     drive_folder = req_data['folder_name']
     logging.info("Folder name:",drive_folder)
-    t = threading.Thread(target = resume_parsing.processResumes, args = (connection, drive_folder))
-    t.start()
+    result = resume_parsing.processResumes(connection,  drive_folder, config)
+    #t = threading.Thread(target = resume_parsing.processResumes, args = (connection, drive_folder))
+    #t.start()
     """
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
@@ -58,7 +104,7 @@ def createBatch():
     loop.run_until_complete
     loop.run_until_complete(asyncio.gather(task))
     """
-    return jsonify({'status': 'success', 'data':'Resume parsing is in process'})
+    return jsonify({'status': 'success', 'data':result['data']})
 
 @app.route('/upload-credentials', methods=['POST'])
 def storeCredentials() :

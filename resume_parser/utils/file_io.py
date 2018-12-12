@@ -12,6 +12,14 @@ from googleapiclient.discovery import build
 from httplib2 import Http
 from oauth2client import file, client, tools
 from apiclient.http import MediaIoBaseDownload
+import boto
+import boto.s3
+from boto.s3.key import Key
+from boto.s3.connection import S3Connection
+import subprocess
+
+
+import logging
 
 class file_io:
     def __init__(self, drive_service) :
@@ -87,7 +95,51 @@ class file_io:
             if page_token is None:
                 break
         
-        return remoteIds        
+        return remoteIds  
+
+    def renameFile(self, sourcePath, destinationPath) :
+        os.rename(sourcePath, destinationPath);
+    
+    def uploadToS3(self, sourcePath, filename, config) :
+        
+        
+       
+        logging.info("File path=======>"+str(sourcePath))
+        #response = subprocess.call("aws s3 cp '"+sourcePath+"' s3://"+config['aws']['resume_bucket_name']+"/")
+        
+        out = subprocess.Popen(['aws', 's3', 'cp', sourcePath, 's3://'+config['aws']['resume_bucket_name']+'/'], 
+           stdout=subprocess.PIPE, 
+           stderr=subprocess.STDOUT)
+        stdout,stderr = out.communicate()
+        
+        logging.info("S3 upload response:"+str(stdout))
+        """
+        #Commented as we are executing with shell command
+        
+        #conn = boto.connect_s3(config['aws']['access_key'], config['aws']['secret_key'], )
+        conn = S3Connection(config['aws']['access_key'], config['aws']['secret_key'], host = config['aws']['region_host'])
+        logging.info("S3 Connection:"+str(conn))
+        #bucket = conn.create_bucket(bucket_name, location=boto.s3.connection.Location.DEFAULT)
+        try :
+            bucket = conn.get_bucket(config['aws']['resume_bucket_name']);
+            logging.info("S3 Bucket=======>"+str(bucket))
+        except Exception as e:
+            logging.error("S3 Bucket Error:"+str(e))
+            error = e.split(':')
+            #if (error[1] == "404 Not Found"):
+            try :
+                bucket = conn.create_bucket(config['aws']['resume_bucket_name'], location=boto.s3.connection.Location.DEFAULT) 
+                logging.info("S3 Bucket 2=======>"+str(bucket))
+            except Exception as e:
+                logging.error("S3 Bucket Creation Error:"+str(e))         
+        
+        #key = Key(bucket, sourcePath)
+        key = Key(bucket)
+        with open(sourcePath, 'r', encoding = "ISO-8859-1") as f:
+            key.send_file(f.read())
+        #End commit
+        """    
+        return "s3://"+config['aws']['resume_bucket_name']+"/"+filename;    
             
     #function to clean input files directory
     def cleanInputDir(self, dirPath) :

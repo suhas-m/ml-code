@@ -39,7 +39,6 @@ class db_connection :
     def executeQuery(self, sql, data = None) :
         try:
             self.getConnection()
-            logging.info("Inside DB Connection======>"+sql)
             mycursor = self.mydb.cursor(buffered=True, dictionary=True)
             
             mycursor.execute(sql, data)

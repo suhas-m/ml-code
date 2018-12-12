@@ -9,23 +9,22 @@ import lib
 import field_extraction
 import spacy
 
-
 from googleapiclient.discovery import build
 from httplib2 import Http
 from oauth2client import file, client, tools
 import auth
-import file_io
 import sys
 sys.path.append('../')
 #from dao.db_connection import db_connection
 from dao.batch import batch
 #from utils.common_utils import common_utils
 from dao.files_processed import files_processed
-from dao.users import users
+from dao.candidates import candidates
 from dao.skills import skills
+from utils.file_io import file_io
+import threading
 
-
-def processResumes(connection, drive_folder):
+def processResumes(connection, drive_folder, config):
     """
     Main function documentation template
     :return: None
@@ -40,7 +39,7 @@ def processResumes(connection, drive_folder):
     DRIVE_FOLDER_NAME = drive_folder
     
     logging.getLogger().setLevel(logging.INFO)
-    fileIOInst = file_io.file_io(drive_service)
+    fileIOInst = file_io(drive_service)
    
     #Search folder with name
     folderId = fileIOInst.getFolderId(DRIVE_FOLDER_NAME)    
@@ -64,32 +63,55 @@ def processResumes(connection, drive_folder):
         
         if (len(filesToProcessArr) > 0) :
             # Spacy: Spacy NLP
-            nlp = spacy.load('en')
+           
             
             #Create batch 
             batchObj = batch(connection)
             batchId = batchObj.create(len(filesToProcessArr), alreadyProcessedFiles)
             if (batchId > 0) :
                 result['data']['batch_id'] = batchId
-                #Download single file and process
                 batchObj.update(batchId, 'In-process')
+                nlp = spacy.load('en')
+                #bucketPath = {}
                 for remoteId in filesToProcessArr:
-                    fileId = fileProcessedObj.create(remoteId, batchId)  
+                    fileId = fileProcessedObj.create(remoteId, batchId, folderId)  
                     fileIOInst.downloadSingleFile(remoteId, resumes_destination_path+filesToProcessArr[remoteId])
                     
                     # Extract data from upstream.
+                    observations = {}
                     observations = extract()
                     
                     # Transform data to have appropriate fields
                     observations, nlp = transform(observations, nlp)
                     
+                    #Renaming file to id from google drive to keep filenames unique in s3
+                    filename_w_ext = os.path.basename(resumes_destination_path+filesToProcessArr[remoteId])
+                    filename, file_extension = os.path.splitext(filename_w_ext)
+                    fileIOInst.renameFile(resumes_destination_path+filesToProcessArr[remoteId], resumes_destination_path+remoteId+file_extension)
+                    
+                    logging.info("Remote Filepath : "+resumes_destination_path+remoteId+file_extension)
+                    #Upload to S3
+                    dir_path = os.path.dirname(os.path.realpath(__file__))
+                    bucketFilePath = ""
+                    try :
+                        bucketFilePath = fileIOInst.uploadToS3(dir_path+"/"+resumes_destination_path+remoteId+file_extension, remoteId+file_extension, config)
+                        #bucketFilePath = fileIOInst.uploadToS3(resumes_destination_path+filesToProcessArr[remoteId], filename_w_ext+file_extension, config)
+                        #bucketPath[fileId] = bucketFilePath
+                        observations['resume_path'] = bucketFilePath
+                    except Exception as e:
+                       logging.error(e) 
                     # Load data for downstream consumption
+                    logging.info("S3 File Path : ", bucketFilePath)
+                    
+                    #Remove file from input location
+                    os.unlink(dir_path+"/"+resumes_destination_path+remoteId+file_extension)
+                        
                     load(connection, observations, nlp, fileId)
+                    
                             
-                    fileIOInst.cleanInputDir(resumes_destination_path) 
-                
+                fileIOInst.cleanInputDir(resumes_destination_path) 
+                    
                 batchObj.update(batchId, 'Finished')
-                
             else:
                 logging.error("Unable to create batch")
                 
@@ -100,8 +122,42 @@ def processResumes(connection, drive_folder):
             logging.info("All files are already processed")  
                     
     return result
-
-
+"""
+def processFile(connection, batchObj, batchId, remoteId, folderId, resumes_destination_path, filesToProcessArr, fileProcessedObj, fileIOInst) :
+    batchObj.update(batchId, 'In-process')
+    nlp = spacy.load('en')
+    for remoteId in filesToProcessArr:
+        fileId = fileProcessedObj.create(remoteId, batchId, folderId)  
+        fileIOInst.downloadSingleFile(remoteId, resumes_destination_path+filesToProcessArr[remoteId])
+        
+        # Extract data from upstream.
+        observations = extract()
+        
+        # Transform data to have appropriate fields
+        observations, nlp = transform(observations, nlp)
+        
+        #Renaming file to id from google drive to keep filenames unique in s3
+        filename_w_ext = os.path.basename(resumes_destination_path+filesToProcessArr[remoteId])
+        filename, file_extension = os.path.splitext(filename_w_ext)
+        fileIOInst.renameFile(resumes_destination_path+filesToProcessArr[remoteId], resumes_destination_path+remoteId+file_extension)
+        
+        logging.info("Remote Filepath : ", resumes_destination_path+remoteId+file_extension)
+        #Upload to S3
+        
+        try :
+            bucketFilePath = fileIOInst.uploadToS3(resumes_destination_path+remoteId+file_extension, remoteId+file_extension)
+            observations['resume_path'] = bucketFilePath
+        except Exception as e:
+           logging.error(e.msg) 
+        # Load data for downstream consumption
+        
+        load(connection, observations, nlp, fileId)
+        
+                
+    fileIOInst.cleanInputDir(resumes_destination_path) 
+        
+    batchObj.update(batchId, 'Finished')
+"""
 def text_extract_utf8(f):
     try:
         return str(textract.process(f), "utf-8")
@@ -164,7 +220,7 @@ def load(connection, observations, nlp, fileId):
     logging.info('Results being output to {}'.format(output_path))
     del(observations['text'])
     observations.to_csv(path_or_buf=output_path, index_label='index', encoding='utf-8', sep=",", quotechar='"')
-    userObj = users(connection)
+    candidateObj = candidates(connection)
     skillsObj = skills(connection)
     for index, row in observations.iterrows():
         sk = {}
@@ -175,16 +231,17 @@ def load(connection, observations, nlp, fileId):
         userSkills = {}
         userSkills['experience'] = row['experience']
         userSkills['skills'] = sk
-        userCursor = userObj.find({'email': row['email']})
+        userCursor = candidateObj.find({'email': row['email']})
+       
         if userCursor.rowcount > 0 :
             user = userCursor.fetchone() 
-            userId = user['id']
-            logging.info("Users with email:"+ row['email']+ " already exist - updating user:"+ str(userId))
-            userObj.update(row, fileId, user['id'])                
+            candidateId = user['id']
+            logging.info("Users with email:"+ row['email']+ " already exist - updating user:"+ str(candidateId))
+            candidateObj.update(row, fileId, user['id'])                
         else :    
-            userId = userObj.create(row, fileId)
+            candidateId = candidateObj.create(row, fileId)
             
-        skillsObj.create(userSkills, userId)
+        skillsObj.create(userSkills, candidateId)
         
     logging.info('End transform')
     pass
