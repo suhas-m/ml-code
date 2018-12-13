@@ -22,23 +22,26 @@ from dao.files_processed import files_processed
 from dao.candidates import candidates
 from dao.skills import skills
 from utils.file_io import file_io
-import threading
 
-def processResumes(connection, drive_folder, config):
+
+def processResumes(connection, drive_folder, config, batchId):
     """
     Main function documentation template
     :return: None
     :rtype: None
     """
-    SCOPES = 'https://www.googleapis.com/auth/drive.readonly'
-    CREDENTIALS_FILE = 'credentials.json'
-    authInst = auth.auth(SCOPES, CREDENTIALS_FILE)
-    creds = authInst.getCredentials()
-    drive_service = build('drive', 'v3', http=creds.authorize(Http()))
+    logging.info("Inside process resumes:")
+    try :
+        authInst = auth.auth(config)
+        creds = authInst.getCredentials()
+        drive_service = build('drive', 'v3', http=creds.authorize(Http()), cache_discovery=False)
+    except Exception as e:
+        logging.error("Error connecting google drive folder:"+str(e))
+    
     resumes_destination_path = "../data/input/example_resumes/"
     DRIVE_FOLDER_NAME = drive_folder
     
-    logging.getLogger().setLevel(logging.INFO)
+    
     fileIOInst = file_io(drive_service)
    
     #Search folder with name
@@ -62,15 +65,15 @@ def processResumes(connection, drive_folder, config):
                 filesToProcessArr[remoteId] = files[remoteId]
         
         if (len(filesToProcessArr) > 0) :
-            # Spacy: Spacy NLP
-           
-            
-            #Create batch 
+            #Update batch 
             batchObj = batch(connection)
-            batchId = batchObj.create(len(filesToProcessArr), alreadyProcessedFiles)
+            updateData = {}
+            updateData['files_to_process'] = len(filesToProcessArr)
+            updateData['already_processed'] = alreadyProcessedFiles
+            updateData['status'] = 'In-process' 
+            batchObj.update(batchId, updateData)
             if (batchId > 0) :
-                result['data']['batch_id'] = batchId
-                batchObj.update(batchId, 'In-process')
+                
                 nlp = spacy.load('en')
                 #bucketPath = {}
                 for remoteId in filesToProcessArr:
@@ -99,7 +102,7 @@ def processResumes(connection, drive_folder, config):
                         #bucketPath[fileId] = bucketFilePath
                         observations['resume_path'] = bucketFilePath
                     except Exception as e:
-                       logging.error(e) 
+                       logging.error("Error in uploading file to S3"+str(e)) 
                     # Load data for downstream consumption
                     logging.info("S3 File Path : ", bucketFilePath)
                     
@@ -111,7 +114,8 @@ def processResumes(connection, drive_folder, config):
                             
                 fileIOInst.cleanInputDir(resumes_destination_path) 
                     
-                batchObj.update(batchId, 'Finished')
+                batchObj.update(batchId, {'status' : 'Finished'})
+                
             else:
                 logging.error("Unable to create batch")
                 
@@ -122,15 +126,17 @@ def processResumes(connection, drive_folder, config):
             logging.info("All files are already processed")  
                     
     return result
-"""
-def processFile(connection, batchObj, batchId, remoteId, folderId, resumes_destination_path, filesToProcessArr, fileProcessedObj, fileIOInst) :
+
+def processFile(connection, batchObj, batchId, remoteId, folderId, resumes_destination_path, filesToProcessArr, fileProcessedObj, fileIOInst, config) :
     batchObj.update(batchId, 'In-process')
     nlp = spacy.load('en')
+    #bucketPath = {}
     for remoteId in filesToProcessArr:
         fileId = fileProcessedObj.create(remoteId, batchId, folderId)  
         fileIOInst.downloadSingleFile(remoteId, resumes_destination_path+filesToProcessArr[remoteId])
         
         # Extract data from upstream.
+        observations = {}
         observations = extract()
         
         # Transform data to have appropriate fields
@@ -141,23 +147,30 @@ def processFile(connection, batchObj, batchId, remoteId, folderId, resumes_desti
         filename, file_extension = os.path.splitext(filename_w_ext)
         fileIOInst.renameFile(resumes_destination_path+filesToProcessArr[remoteId], resumes_destination_path+remoteId+file_extension)
         
-        logging.info("Remote Filepath : ", resumes_destination_path+remoteId+file_extension)
+        logging.info("Remote Filepath : "+resumes_destination_path+remoteId+file_extension)
         #Upload to S3
-        
+        dir_path = os.path.dirname(os.path.realpath(__file__))
+        bucketFilePath = ""
         try :
-            bucketFilePath = fileIOInst.uploadToS3(resumes_destination_path+remoteId+file_extension, remoteId+file_extension)
+            bucketFilePath = fileIOInst.uploadToS3(dir_path+"/"+resumes_destination_path+remoteId+file_extension, remoteId+file_extension, config)
+            #bucketFilePath = fileIOInst.uploadToS3(resumes_destination_path+filesToProcessArr[remoteId], filename_w_ext+file_extension, config)
+            #bucketPath[fileId] = bucketFilePath
             observations['resume_path'] = bucketFilePath
         except Exception as e:
-           logging.error(e.msg) 
+           logging.error("Error in uploading file to S3"+str(e)) 
         # Load data for downstream consumption
+        logging.info("S3 File Path : ", bucketFilePath)
         
+        #Remove file from input location
+        os.unlink(dir_path+"/"+resumes_destination_path+remoteId+file_extension)
+            
         load(connection, observations, nlp, fileId)
         
                 
     fileIOInst.cleanInputDir(resumes_destination_path) 
         
     batchObj.update(batchId, 'Finished')
-"""
+
 def text_extract_utf8(f):
     try:
         return str(textract.process(f), "utf-8")

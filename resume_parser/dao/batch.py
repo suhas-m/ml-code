@@ -24,9 +24,19 @@ class batch :
         else :
             return False
         
-    def update(self, batch_id, status):
-        query = "UPDATE batch SET status = %s WHERE id = %s"
-        data = (status, batch_id)
+    def update(self, batch_id, updateData):
+        update = ""
+        data = []
+        if (updateData is not None) :
+            for param in updateData:
+                update += " "+param+" = %s ," 
+                data.append(str(updateData[param]))
+                
+        if (update !=""):
+            update = update.rstrip(",")
+        query = "UPDATE batch SET "+update+" WHERE id = %s"
+        data.append(batch_id)
+        data = tuple(data)
         cursor = self.connection.executeQuery(query, data)
         if (cursor != False) :
             return cursor.lastrowid

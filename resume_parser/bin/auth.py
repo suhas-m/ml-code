@@ -13,12 +13,13 @@ import requests
 # If modifying these scopes, delete the file token.json.
 
 class auth:
-    def __init__(self, SCOPES, CREDENTIALS_FILE):
-        self.SCOPES = SCOPES
-        self.CREDENTIALS_FILE = CREDENTIALS_FILE
+    def __init__(self, config):
+        self.SCOPES = config["google-drive"]["scope"]
+        self.CREDENTIALS_FILE = config["google-drive"]["credential_file"]
+        self.TOKEN_FILE = config["google-drive"]["token_file"]
         
     def storeAuthToken(self) :
-        store = file.Storage('token.json')
+        store = file.Storage(self.TOKEN_FILE)
         creds = store.get()
         if not creds or creds.invalid:
             flow = client.flow_from_clientsecrets(self.CREDENTIALS_FILE, self.SCOPES)
@@ -26,9 +27,9 @@ class auth:
         
     def getCredentials(self):
         requests.post('https://accounts.google.com/o/oauth2/revoke',
-                      params={'token': file.Storage('token.json')},
+                      params={'token': file.Storage(self.TOKEN_FILE)},
                       headers = {'content-type': 'application/x-www-form-urlencoded'})
-        store = file.Storage('token.json')
+        store = file.Storage(self.TOKEN_FILE)
         creds = store.get()
         if not creds or creds.invalid:
             flow = client.flow_from_clientsecrets(self.CREDENTIALS_FILE, self.SCOPES)

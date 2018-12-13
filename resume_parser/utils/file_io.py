@@ -38,30 +38,49 @@ class file_io:
             for item in items:
                 print(u'{0} ({1})'.format(item['name'], item['id']))
     
+    #function to create folder
+    def createFolder(self, name):
+        file_metadata = {
+            'name' : name,
+            'mimeType' : 'application/vnd.google-apps.folder'            
+        }
+        response = self.drive_service.files().create(body = file_metadata, fields = 'id').execute()
+        folderId = response.get('id')
+        
+        return folderId;        
+    
     #Function to get folderId from foldername
     def getFolderId(self, name):
-        response = self.drive_service.files().list(q= "name = '"+name+"' AND mimeType = 'application/vnd.google-apps.folder'", 
-                                           fields = "nextPageToken, files(id, name)",
-                                           pageSize= 1).execute()
-        folderId = None
-        for file in response.get('files', []):
-            folderId = file.get('id')
-            print ('Found file: %s (%s)' % (file.get('name'), file.get('id')))
+        try :
+            response = self.drive_service.files().list(q= "name = '"+name+"' AND mimeType = 'application/vnd.google-apps.folder'", 
+                                               fields = "nextPageToken, files(id, name)",
+                                               pageSize= 1).execute()
+            folderId = None
+            for file in response.get('files', []):
+                folderId = file.get('id')
+                print ('Found file: %s (%s)' % (file.get('name'), file.get('id')))
+        except Exception as e:
+                logging.error("Error in getting file list from folder:"+str(e))         
         #print('Folder Id: %s' % files[0].get('id'))
-        return folderId;        
+        return folderId;
+    
+    
     #function to download single file from id    
     def downloadSingleFile(self, fileId, destinationPath) :
             print("Destination Path:", destinationPath)
-            request = self.drive_service.files().get_media(fileId=fileId)
-            fh = io.BytesIO()
-            downloader = MediaIoBaseDownload(fh, request)
-            done = False
-            while done is False:
-                status, done = downloader.next_chunk()
-                print ("Download %d%%." % int(status.progress() * 100))
-            with io.open(destinationPath, 'wb') as f :
-                fh.seek(0)
-                f.write(fh.read())
+            try :
+                request = self.drive_service.files().get_media(fileId=fileId)
+                fh = io.BytesIO()
+                downloader = MediaIoBaseDownload(fh, request)
+                done = False
+                while done is False:
+                    status, done = downloader.next_chunk()
+                    print ("Download %d%%." % int(status.progress() * 100))
+                with io.open(destinationPath, 'wb') as f :
+                    fh.seek(0)
+                    f.write(fh.read())
+            except Exception as e:
+                logging.error("Error in downloading file:"+str(e))         
 
     #function to get files from folder with given folderId
     def downloadFiles(self, folderId, destinationPath, pageSize) :
@@ -130,8 +149,7 @@ class file_io:
             try :
                 bucket = conn.create_bucket(config['aws']['resume_bucket_name'], location=boto.s3.connection.Location.DEFAULT) 
                 logging.info("S3 Bucket 2=======>"+str(bucket))
-            except Exception as e:
-                logging.error("S3 Bucket Creation Error:"+str(e))         
+            c         
         
         #key = Key(bucket, sourcePath)
         key = Key(bucket)

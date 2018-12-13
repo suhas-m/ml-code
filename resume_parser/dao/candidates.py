@@ -31,10 +31,10 @@ class candidates :
         data = []
         if (params is not None) :
             for param in params:
-                where += " "+param+" = %s" 
+                where += " "+param+" = %s AND" 
                 data.append(str(params[param]))
         if (where != "") :
-            where = "WHERE "+where
+            where = "WHERE "+where.rstrip("AND")
         query = "SELECT * FROM candidates "+where
         data = tuple(data)
         cursor = self.connection.executeQuery(query, data)
